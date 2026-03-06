@@ -12,6 +12,5 @@
     
     <Application.Styles>
         <themes:MaterialTheme BaseTheme="Dark" PrimaryColor="Blue" SecondaryColor="Amber" />
-        <!-- <StyleInclude Source="avares://Material.Icons.Avalonia/Icon.axaml" /> -->
     </Application.Styles>
 </Application>

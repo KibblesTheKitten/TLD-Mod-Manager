@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TLD_Mod_Manager", "TLD_Mod_Manager\TLD_Mod_Manager.csproj", "{57B4393A-1D18-4E72-8004-BADDCEB19436}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TLD_Mod_Manager", "src/TLD_Mod_Manager/TLD_Mod_Manager.csproj", "{57B4393A-1D18-4E72-8004-BADDCEB19436}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

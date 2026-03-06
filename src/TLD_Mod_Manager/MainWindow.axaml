@@ -18,8 +18,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-
-        <!-- Header with title and count -->
+        
         <StackPanel Grid.Row="0" Margin="20,10" Spacing="5">
             <TextBlock Text="The Long Dark Mod Manager" 
                        Classes="Headline4" 
@@ -29,47 +28,41 @@
                        HorizontalAlignment="Center"
                        Foreground="{DynamicResource MaterialDesignBodyText}"/>
         </StackPanel>
-
-        <!-- Search Bar -->
+        
         <TextBox Grid.Row="1" 
                  Watermark="Search mods..." 
                  Margin="20,0,20,10"
                  Classes="Outline"
                  Text="{Binding SearchText, Mode=TwoWay}"/>
-
-        <!-- Loading Indicator -->
+        
         <Grid Grid.Row="2" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center">
             <StackPanel Spacing="10">
                 <ProgressBar IsIndeterminate="True" Width="300" Height="8"/>
                 <TextBlock Text="Fetching mods..." Classes="Body2" HorizontalAlignment="Center"/>
             </StackPanel>
         </Grid>
-
-        <!-- Mod List -->
+        
         <ListBox Grid.Row="2"
                  ItemsSource="{Binding FilteredMods}" 
                  Margin="20,0,20,20"
                  IsVisible="{Binding !IsLoading}"
-                 SelectionMode="Single">   <!-- Added closing '>' here -->
+                 SelectionMode="Single">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:Mod">
                     <!-- Material Card -->
                     <Border Classes="Card" Margin="0,0,0,10" Padding="16">
                         <StackPanel Spacing="12">
-                            <!-- Top row: Name + Status + DLC badge -->
                             <Grid ColumnDefinitions="*, Auto">
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Name}" Classes="Headline6"/>
                                     <TextBlock Text="{Binding Version}" 
                                                Classes="Caption"
                                                Foreground="{DynamicResource MaterialDesignBodyTextLight}"/>
-                                    <!-- DLC badge -->
                                     <Border IsVisible="{Binding TftftDlcRequired}" 
                                             Background="{DynamicResource MaterialDesignChipBackground}"
                                             CornerRadius="12" Padding="8,2">
                                         <TextBlock Text="TFTFT" Classes="Overline"/>
                                     </Border>
-                                    <!-- Library/Plugin badges -->
                                     <Border IsVisible="{Binding IsLibrary}" 
                                             Background="{DynamicResource MaterialDesignChipBackground}"
                                             CornerRadius="12" Padding="8,2">
@@ -81,7 +74,6 @@
                                         <TextBlock Text="PLUGIN" Classes="Overline"/>
                                     </Border>
                                 </StackPanel>
-                                <!-- Status chip -->
                                 <Border Grid.Column="1"
                                         Background="{Binding Status, Converter={StaticResource StatusToColor}}"
                                         CornerRadius="12" Padding="12,4">
@@ -90,10 +82,8 @@
                                                Foreground="White"/>
                                 </Border>
                             </Grid>
-
-                            <!-- Image + Description row -->
+                            
                             <Grid ColumnDefinitions="80, *" RowDefinitions="Auto,Auto">
-                                <!-- Image placeholder with fallback -->
                                 <Border Grid.Column="0" Grid.RowSpan="2" 
                                         Background="{DynamicResource MaterialDesignCardBackground}"
                                         CornerRadius="4" Margin="0,0,12,0"
@@ -107,14 +97,12 @@
                                     </Image>
                                 </Border>
                                 
-                                <!-- Description -->
                                 <TextBlock Grid.Column="1" Grid.Row="0"
                                            Text="{Binding Description}"
                                            Classes="Body2"
                                            TextWrapping="Wrap"
                                            MaxHeight="60"/>
                                 
-                                <!-- Author and last updated -->
                                 <StackPanel Grid.Column="1" Grid.Row="1" 
                                             Orientation="Horizontal" Spacing="16"
                                             Margin="0,8,0,0">
@@ -130,13 +118,11 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
-
-                            <!-- Categories -->
+                            
                             <WrapPanel>
                                 <ItemsControl ItemsSource="{Binding Categories}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <!-- This WrapPanel will actually arrange the items -->
                                             <WrapPanel />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
@@ -144,15 +130,14 @@
                                         <DataTemplate>
                                             <Border Background="{DynamicResource MaterialDesignChipBackground}"
                                                     CornerRadius="12" Padding="8,2"
-                                                    Margin="0,0,4,4"> <!-- Spacing achieved via Margin -->
+                                                    Margin="0,0,4,4"> 
                                                 <TextBlock Text="{Binding}" Classes="Overline"/>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </WrapPanel>
-
-                            <!-- Action buttons -->
+                            
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                                 <Button Classes="Text" Content="Details"/>
                                 <Button Classes="Primary" Content="Install"/>

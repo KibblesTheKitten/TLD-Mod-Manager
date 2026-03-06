@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace TLD_Mod_Manager;
 
@@ -17,93 +18,66 @@ public class ModService
     {
         try
         {
-            // Fetch the JSON array from the API
             string json = await _httpClient.GetStringAsync(ApiUrl);
-
-            // Deserialize directly into a list of ApiMod objects
             var apiMods = JsonSerializer.Deserialize<List<ApiMod>>(json, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true // Handles minor naming variations
+                PropertyNameCaseInsensitive = true
             });
 
             if (apiMods == null)
                 return new List<Mod>();
 
-            // Map ApiMod to your display Mod class
             var result = apiMods.Select(apiMod => new Mod
             {
-                
                 Name = apiMod.DisplayName ?? apiMod.Name ?? "Unknown",
-                
                 Author = apiMod.DisplayAuthor?.FirstOrDefault() ?? apiMod.Author ?? "Unknown",
-                
                 Version = apiMod.Version ?? "",
-                
                 Description = apiMod.Description ?? "",
-                
                 Categories = apiMod.Categories ?? new List<string>(),
-                
-                Status = "Curently Unknown",
-                
+                Status = "Unknown",
                 ImageUrl = apiMod.Images != null && apiMod.Images.Count > 0 ? apiMod.Images[0] : "",
-                
-                DownloadUrl = !string.IsNullOrEmpty(apiMod.Download) ? apiMod.Download : 
+                DownloadUrl = !string.IsNullOrEmpty(apiMod.Download) ? apiMod.Download :
                                (apiMod.Downloads != null && apiMod.Downloads.Count > 0 ? apiMod.Downloads[0] : ""),
                 Dependencies = apiMod.Dependencies ?? new List<string>(),
-                
                 SourceUrl = apiMod.Source
-                
             }).ToList();
 
             return result;
         }
         catch (Exception ex)
         {
-            // Log error (you can use Debug.WriteLine or file logging)
-            System.Diagnostics.Debug.WriteLine($"Error fetching mods from API: {ex.Message}");
+            Debug.WriteLine($"Error fetching mods from API: {ex.Message}");
             return new List<Mod>();
         }
     }
 
+    public async Task<ModDetails?> GetModDetailsAsync(string sourceUrl)
     {
-        public async Task<ModDetails?> GetModDetailsAsync(string sourceUrl)
+        try
         {
-            try
-            {
-                string json = await _httpClient.GetStringAsync(sourceUrl);
-                // The source JSON is usually an array with one mod object
-                var modList = JsonSerializer.Deserialize<List<JsonModData>>(json);
-                var fullData = modList?.FirstOrDefault();
-                if (fullData == null) return null;
+            string json = await _httpClient.GetStringAsync(sourceUrl);
+            var modList = JsonSerializer.Deserialize<List<JsonModData>>(json);
+            var fullData = modList?.FirstOrDefault();
+            if (fullData == null) return null;
 
-                return new ModDetails
-                {
-                    Status = fullData.Status?.Working == true ? "WORKING" : "NOT WORKING",
-                    TestedOn = fullData.TestedOn != null 
-                        ? $"TLD {fullData.TestedOn.TldVersion} / ML {fullData.TestedOn.MlVersion}"
-                        : "Unknown",
-                    Beta = fullData.Status?.Beta ?? false,
-                    PatchNotes = fullData.Status?.PatchNotes ?? "",
-                    // Add any other fields you want
-                };
-            }
-            catch
+            return new ModDetails
             {
-                return null;
-            }
+                Status = fullData.Status?.Working == true ? "WORKING" : "NOT WORKING",
+                TestedOn = fullData.TestedOn != null
+                    ? $"TLD {fullData.TestedOn.TldVersion} / ML {fullData.TestedOn.MlVersion}"
+                    : "Unknown",
+                Beta = fullData.Status?.Beta ?? false,
+                PatchNotes = fullData.Status?.PatchNotes ?? ""
+            };
         }
-
-    public class ModDetails
-    {
-        public string Status { get; set; } = "Unknown";
-        public string TestedOn { get; set; } = "Unknown";
-        public bool Beta { get; set; }
-        public string PatchNotes { get; set; } = "";
-    }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error fetching mod details: {ex.Message}");
+            return null;
+        }
     }
 }
 
-// Class matching the API response structure
 public class ApiMod
 {
     [JsonPropertyName("DisplayName")]
@@ -148,5 +122,59 @@ public class ApiMod
     [JsonPropertyName("Categories")]
     public List<string>? Categories { get; set; }
 
-    // Add any other fields you might need later
+    [JsonPropertyName("Source")]
+    public string? Source { get; set; }
+}
+
+public class JsonModData
+{
+    public string? Name { get; set; }
+    public string? Version { get; set; }
+    public string? Author { get; set; }
+    public List<string>? Categories { get; set; }
+    public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? DownloadUrl { get; set; }
+    public List<string>? Dependencies { get; set; }
+    public ModStatus? Status { get; set; }
+    public ModTestedOn? TestedOn { get; set; }
+    public string? LastUpdated { get; set; }
+    public bool TftftDlcRequired { get; set; }
+    public bool IsLibrary { get; set; }
+    public bool IsPlugin { get; set; }
+}
+
+public class ModStatus
+{
+    [JsonPropertyName("working")]
+    public bool Working { get; set; }
+
+    [JsonPropertyName("beta")]
+    public bool Beta { get; set; }
+
+    [JsonPropertyName("patchnotes")]
+    public string? PatchNotes { get; set; }
+
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+
+    [JsonPropertyName("issues")]
+    public string? Issues { get; set; }
+}
+
+public class ModTestedOn
+{
+    [JsonPropertyName("tldversion")]
+    public string? TldVersion { get; set; }
+
+    [JsonPropertyName("mlversion")]
+    public string? MlVersion { get; set; }
+}
+
+public class ModDetails
+{
+    public string Status { get; set; } = "Unknown";
+    public string TestedOn { get; set; } = "Unknown";
+    public bool Beta { get; set; }
+    public string PatchNotes { get; set; } = "";
 }

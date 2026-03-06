@@ -8,7 +8,6 @@ public class StringToBitmapConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        // We'll implement proper async loading later. For now, return null (placeholder)
         return null;
     }
 

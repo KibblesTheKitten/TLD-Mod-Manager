@@ -4,13 +4,14 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using AsyncAwaitBestPractices.MVVM;
 
 namespace TLD_Mod_Manager;
 
 public class MainWindowViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
-    
+
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -24,7 +25,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             _mods = value;
             OnPropertyChanged();
-            FilterMods(); // Re-filter when mods change
+            FilterMods();
         }
     }
 
@@ -62,8 +63,22 @@ public class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    private ModDetails? _selectedModDetails;
+    public ModDetails? SelectedModDetails
+    {
+        get => _selectedModDetails;
+        set
+        {
+            _selectedModDetails = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public AsyncCommand<Mod> ShowDetailsCommand { get; }
+    
     public MainWindowViewModel()
     {
+        ShowDetailsCommand = new AsyncCommand<Mod>(ShowDetails);
         _ = LoadModsAsync();
     }
 
@@ -75,7 +90,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         }
         else
         {
-            var filtered = Mods.Where(m => 
+            var filtered = Mods.Where(m =>
                 (m.Name?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (m.Author?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (m.Categories?.Any(c => c.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ?? false)
@@ -102,13 +117,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
             IsLoading = false;
         }
     }
-    public AsyncCommand<Mod> ShowDetailsCommand { get; }
-
-    public MainWindowViewModel()
-    {
-        ShowDetailsCommand = new AsyncCommand<Mod>(ShowDetails);
-        _ = LoadModsAsync();
-    }
 
     private async Task ShowDetails(Mod mod)
     {
@@ -118,8 +126,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         var details = await service.GetModDetailsAsync(mod.SourceUrl);
         if (details != null)
         {
-            // Show a dialog or update a panel with details
-            // For now, we'll just update a property and bind to it
             SelectedModDetails = details;
         }
     }
+}
