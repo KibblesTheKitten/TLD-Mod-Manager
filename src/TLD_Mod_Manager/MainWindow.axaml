@@ -2,12 +2,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:TLD_Mod_Manager"
         xmlns:i="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
         x:Class="TLD_Mod_Manager.MainWindow"
+        x:Name="RootWindow" 
         x:DataType="local:MainWindowViewModel"
         Title="TLD Mod Manager"
         Width="1000" Height="700"
         Background="{DynamicResource MaterialDesignBackground}">
-
+    
     <Design.DataContext>
         <local:MainWindowViewModel />
     </Design.DataContext>
@@ -88,13 +90,8 @@
                                         Background="{DynamicResource MaterialDesignCardBackground}"
                                         CornerRadius="4" Margin="0,0,12,0"
                                         Width="80" Height="80">
-                                    <Image Source="{Binding ImageUrl, Converter={StaticResource StringToBitmap}}">
-                                        <Image.Styles>
-                                            <Style Selector="Image">
-                                                <Setter Property="Stretch" Value="UniformToFill"/>
-                                            </Style>
-                                        </Image.Styles>
-                                    </Image>
+                                    <Image Stretch="UniformToFill"
+                                           asyncImageLoader:ImageLoader.Source="{Binding ImageUrl}"/>
                                 </Border>
                                 
                                 <TextBlock Grid.Column="1" Grid.Row="0"
@@ -139,8 +136,12 @@
                             </WrapPanel>
                             
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                                <Button Classes="Text" Content="Details"/>
-                                <Button Classes="Primary" Content="Install"/>
+                                <Button Classes="Text" Content="Details"
+                                        Command="{Binding DataContext.ShowDetailsCommand, ElementName=RootWindow}"
+                                        CommandParameter="{Binding .}"/>
+                                <Button Classes="Primary" Content="Install"
+                                        Command="{Binding DataContext.InstallCommand, ElementName=RootWindow}"
+                                        CommandParameter="{Binding .}"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

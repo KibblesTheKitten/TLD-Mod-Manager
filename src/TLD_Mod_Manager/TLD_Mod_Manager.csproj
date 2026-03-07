@@ -5,15 +5,16 @@
         <Nullable>enable</Nullable>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <UseAvalonia>true</UseAvalonia>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="10.0.0" />
+        <PackageReference Include="AsyncImageLoader.Avalonia" Version="3.7.1-nightly.0.2" />
         <PackageReference Include="Avalonia" Version="11.3.12"/>
         <PackageReference Include="Avalonia.Desktop" Version="11.3.12"/>
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12"/>
         <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12"/>
-        <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Include="Avalonia.Diagnostics" Version="11.3.12">
             <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
@@ -24,6 +25,11 @@
         <PackageReference Include="Material.Avalonia.Dialogs" Version="3.13.4" />
         <PackageReference Include="Material.Icons" Version="3.0.0" />
         <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0" />
+        <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
         <PackageReference Include="System.Reactive" Version="7.0.0-preview.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Assets\images\" />
     </ItemGroup>
 </Project>

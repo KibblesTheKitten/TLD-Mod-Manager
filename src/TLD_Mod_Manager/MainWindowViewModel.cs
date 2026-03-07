@@ -1,10 +1,16 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using AsyncAwaitBestPractices.MVVM;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
 
 namespace TLD_Mod_Manager;
 
@@ -73,12 +79,14 @@ public class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-
-    public AsyncCommand<Mod> ShowDetailsCommand { get; }
     
+    public AsyncCommand<Mod> ShowDetailsCommand { get; }
+    public AsyncCommand<Mod> InstallCommand { get; }
+
     public MainWindowViewModel()
     {
         ShowDetailsCommand = new AsyncCommand<Mod>(ShowDetails);
+        InstallCommand = new AsyncCommand<Mod>(InstallMod);
         _ = LoadModsAsync();
     }
 
@@ -118,15 +126,72 @@ public class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task ShowDetails(Mod mod)
+    private async Task ShowDetails(Mod? mod)
     {
-        if (string.IsNullOrEmpty(mod.SourceUrl)) return;
+        if (mod == null) return;
 
-        var service = new ModService();
-        var details = await service.GetModDetailsAsync(mod.SourceUrl);
-        if (details != null)
+        var detailsWindow = new DetailsWindow
         {
-            SelectedModDetails = details;
+            DataContext = mod
+        };
+
+        if (App.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            await detailsWindow.ShowDialog(desktop.MainWindow);
         }
+        else
+        {
+            detailsWindow.Show();
+        }
+    }
+
+    private async Task InstallMod(Mod? mod)
+    {
+        if (mod == null) return;
+        if (string.IsNullOrEmpty(mod.DownloadUrl))
+        {
+            await ShowMessage("Error", "No download URL for this mod.");
+            return;
+        }
+
+        if (App.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            await ShowMessage("Error", "Cannot determine main window.");
+            return;
+        }
+
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select installation folder (Mods directory of The Long Dark)"
+        };
+        var folder = await dialog.ShowAsync(desktop.MainWindow);
+        if (string.IsNullOrEmpty(folder)) return;
+
+        try
+        {
+            using var client = new HttpClient();
+            var response = await client.GetAsync(mod.DownloadUrl);
+            response.EnsureSuccessStatusCode();
+
+            var fileName = Path.GetFileName(new Uri(mod.DownloadUrl).LocalPath);
+            if (string.IsNullOrEmpty(fileName))
+                fileName = $"{mod.Name}.dll";
+            var savePath = Path.Combine(folder, fileName);
+
+            using var fileStream = File.Create(savePath);
+            await response.Content.CopyToAsync(fileStream);
+
+            await ShowMessage("Success", $"Downloaded {mod.Name} to {savePath}");
+        }
+        catch (Exception ex)
+        {
+            await ShowMessage("Error", $"Download failed: {ex.Message}");
+        }
+    }
+    
+    private async Task ShowMessage(string title, string message)
+    {
+        var msgBox = MessageBoxManager.GetMessageBoxStandard(title, message);
+        await msgBox.ShowAsync();
     }
 }
