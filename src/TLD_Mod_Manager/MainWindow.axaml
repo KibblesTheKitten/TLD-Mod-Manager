@@ -2,14 +2,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:TLD_Mod_Manager"
         xmlns:i="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
-        xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
         x:Class="TLD_Mod_Manager.MainWindow"
-        x:Name="RootWindow" 
+        x:Name="RootWindow"
         x:DataType="local:MainWindowViewModel"
         Title="TLD Mod Manager"
         Width="1000" Height="700"
         Background="{DynamicResource MaterialDesignBackground}">
-    
+
     <Design.DataContext>
         <local:MainWindowViewModel />
     </Design.DataContext>
@@ -22,17 +21,14 @@
         </Grid.RowDefinitions>
         
         <StackPanel Grid.Row="0" Margin="20,10" Spacing="5">
-            <TextBlock Text="The Long Dark Mod Manager" 
-                       Classes="Headline4" 
-                       HorizontalAlignment="Center"/>
-            <TextBlock Text="{Binding Mods.Count, StringFormat='{}{0} mods available'}" 
-                       Classes="Subtitle1" 
-                       HorizontalAlignment="Center"
-                       Foreground="{DynamicResource MaterialDesignBodyText}"/>
+            <TextBlock Text="The Long Dark Mod Manager" Classes="Headline4" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding Mods.Count, StringFormat='{}{0} mods available'}" Classes="Subtitle1" HorizontalAlignment="Center"/>
+            <Button Content="Select Game Folder" Command="{Binding SelectGamePathCommand}" Margin="0,5" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding GamePath}" Classes="Caption" TextWrapping="Wrap" HorizontalAlignment="Center"/>
         </StackPanel>
         
-        <TextBox Grid.Row="1" 
-                 Watermark="Search mods..." 
+        <TextBox Grid.Row="1"
+                 Watermark="Search mods..."
                  Margin="20,0,20,10"
                  Classes="Outline"
                  Text="{Binding SearchText, Mode=TwoWay}"/>
@@ -45,32 +41,31 @@
         </Grid>
         
         <ListBox Grid.Row="2"
-                 ItemsSource="{Binding FilteredMods}" 
+                 ItemsSource="{Binding FilteredMods}"
                  Margin="20,0,20,20"
                  IsVisible="{Binding !IsLoading}"
                  SelectionMode="Single">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="local:Mod">
-                    <!-- Material Card -->
                     <Border Classes="Card" Margin="0,0,0,10" Padding="16">
                         <StackPanel Spacing="12">
                             <Grid ColumnDefinitions="*, Auto">
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Name}" Classes="Headline6"/>
-                                    <TextBlock Text="{Binding Version}" 
+                                    <TextBlock Text="{Binding Version}"
                                                Classes="Caption"
                                                Foreground="{DynamicResource MaterialDesignBodyTextLight}"/>
-                                    <Border IsVisible="{Binding TftftDlcRequired}" 
+                                    <Border IsVisible="{Binding TftftDlcRequired}"
                                             Background="{DynamicResource MaterialDesignChipBackground}"
                                             CornerRadius="12" Padding="8,2">
                                         <TextBlock Text="TFTFT" Classes="Overline"/>
                                     </Border>
-                                    <Border IsVisible="{Binding IsLibrary}" 
+                                    <Border IsVisible="{Binding IsLibrary}"
                                             Background="{DynamicResource MaterialDesignChipBackground}"
                                             CornerRadius="12" Padding="8,2">
                                         <TextBlock Text="LIBRARY" Classes="Overline"/>
                                     </Border>
-                                    <Border IsVisible="{Binding IsPlugin}" 
+                                    <Border IsVisible="{Binding IsPlugin}"
                                             Background="{DynamicResource MaterialDesignChipBackground}"
                                             CornerRadius="12" Padding="8,2">
                                         <TextBlock Text="PLUGIN" Classes="Overline"/>
@@ -79,27 +74,27 @@
                                 <Border Grid.Column="1"
                                         Background="{Binding Status, Converter={StaticResource StatusToColor}}"
                                         CornerRadius="12" Padding="12,4">
-                                    <TextBlock Text="{Binding Status}" 
-                                               Classes="Button" 
+                                    <TextBlock Text="{Binding Status}"
+                                               Classes="Button"
                                                Foreground="White"/>
                                 </Border>
                             </Grid>
                             
-                            <Grid ColumnDefinitions="80, *" RowDefinitions="Auto,Auto">
-                                <Border Grid.Column="0" Grid.RowSpan="2" 
+                            <Grid ColumnDefinitions="80, *" RowDefinitions="Auto, Auto">
+                                <Border Grid.Column="0" Grid.Row="0" Grid.RowSpan="2"
                                         Background="{DynamicResource MaterialDesignCardBackground}"
                                         CornerRadius="4" Margin="0,0,12,0"
                                         Width="80" Height="80">
-                                    <Image Stretch="UniformToFill"
-                                           asyncImageLoader:ImageLoader.Source="{Binding ImageUrl}"/>
+                                    <Image Source="/Assets/images/Placeholder.png" 
+                                           Stretch="UniformToFill"/>
                                 </Border>
-                                
+
                                 <TextBlock Grid.Column="1" Grid.Row="0"
                                            Text="{Binding Description}"
                                            Classes="Body2"
                                            TextWrapping="Wrap"
                                            MaxHeight="60"/>
-                                
+
                                 <StackPanel Grid.Column="1" Grid.Row="1" 
                                             Orientation="Horizontal" Spacing="16"
                                             Margin="0,8,0,0">
@@ -115,7 +110,6 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
-                            
                             <WrapPanel>
                                 <ItemsControl ItemsSource="{Binding Categories}">
                                     <ItemsControl.ItemsPanel>
@@ -127,7 +121,7 @@
                                         <DataTemplate>
                                             <Border Background="{DynamicResource MaterialDesignChipBackground}"
                                                     CornerRadius="12" Padding="8,2"
-                                                    Margin="0,0,4,4"> 
+                                                    Margin="0,0,4,4">
                                                 <TextBlock Text="{Binding}" Classes="Overline"/>
                                             </Border>
                                         </DataTemplate>

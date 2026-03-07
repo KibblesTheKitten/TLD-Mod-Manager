@@ -1,16 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using AsyncAwaitBestPractices.MVVM;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using MsBox.Avalonia;
-using MsBox.Avalonia.Enums;
 
 namespace TLD_Mod_Manager;
 
@@ -24,6 +27,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private ObservableCollection<Mod> _mods = new();
+
     public ObservableCollection<Mod> Mods
     {
         get => _mods;
@@ -36,6 +40,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private ObservableCollection<Mod> _filteredMods = new();
+
     public ObservableCollection<Mod> FilteredMods
     {
         get => _filteredMods;
@@ -47,6 +52,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private string _searchText = string.Empty;
+
     public string SearchText
     {
         get => _searchText;
@@ -59,6 +65,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private bool _isLoading;
+
     public bool IsLoading
     {
         get => _isLoading;
@@ -70,6 +77,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private ModDetails? _selectedModDetails;
+
     public ModDetails? SelectedModDetails
     {
         get => _selectedModDetails;
@@ -79,7 +87,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-    
+
     public AsyncCommand<Mod> ShowDetailsCommand { get; }
     public AsyncCommand<Mod> InstallCommand { get; }
 
@@ -87,6 +95,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     {
         ShowDetailsCommand = new AsyncCommand<Mod>(ShowDetails);
         InstallCommand = new AsyncCommand<Mod>(InstallMod);
+        SelectGamePathCommand = new AsyncCommand(SelectGamePath);
         _ = LoadModsAsync();
     }
 
@@ -115,6 +124,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
             var service = new ModService();
             var loadedModsList = await service.GetModsAsync();
             Mods = new ObservableCollection<Mod>(loadedModsList);
+            
+            _ = FetchAllDetailsAsync(loadedModsList);
         }
         catch (Exception ex)
         {
@@ -124,6 +135,39 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             IsLoading = false;
         }
+    }
+
+    private async Task FetchAllDetailsAsync(List<Mod> mods)
+    {
+        
+        var semaphore = new SemaphoreSlim(5);
+        var tasks = mods.Select(async mod =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                if (string.IsNullOrEmpty(mod.SourceUrl)) return;
+                var service = new ModService();
+                var details = await service.GetModDetailsAsync(mod.SourceUrl);
+                if (details != null)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        mod.Status = details.Status;
+                        mod.TestedOn = details.TestedOn;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error fetching details for {mod.Name}: {ex}");
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+        await Task.WhenAll(tasks);
     }
 
     private async Task ShowDetails(Mod? mod)
@@ -153,45 +197,152 @@ public class MainWindowViewModel : INotifyPropertyChanged
             await ShowMessage("Error", "No download URL for this mod.");
             return;
         }
-
-        if (App.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        
+        if (string.IsNullOrEmpty(GamePath))
         {
-            await ShowMessage("Error", "Cannot determine main window.");
+            await ShowMessage("Game Path Required", "Please select your The Long Dark installation folder first.");
             return;
         }
 
-        var dialog = new OpenFolderDialog
-        {
-            Title = "Select installation folder (Mods directory of The Long Dark)"
-        };
-        var folder = await dialog.ShowAsync(desktop.MainWindow);
-        if (string.IsNullOrEmpty(folder)) return;
-
-        try
-        {
-            using var client = new HttpClient();
-            var response = await client.GetAsync(mod.DownloadUrl);
-            response.EnsureSuccessStatusCode();
-
-            var fileName = Path.GetFileName(new Uri(mod.DownloadUrl).LocalPath);
-            if (string.IsNullOrEmpty(fileName))
-                fileName = $"{mod.Name}.dll";
-            var savePath = Path.Combine(folder, fileName);
-
-            using var fileStream = File.Create(savePath);
-            await response.Content.CopyToAsync(fileStream);
-
-            await ShowMessage("Success", $"Downloaded {mod.Name} to {savePath}");
-        }
-        catch (Exception ex)
-        {
-            await ShowMessage("Error", $"Download failed: {ex.Message}");
-        }
+        await InstallModWithDependencies(mod, new HashSet<string>());
     }
     
+    private async Task InstallModWithDependencies(Mod mod, HashSet<string> processing)
+    {
+        if (processing.Contains(mod.Name))
+        {
+            await ShowMessage("Dependency Loop", $"Circular dependency detected: {mod.Name}");
+            return;
+        }
+        processing.Add(mod.Name);
+        
+        foreach (var depName in mod.Dependencies)
+        {
+            var depMod = Mods.FirstOrDefault(m => m.Name == depName);
+            if (depMod == null)
+            {
+                await ShowMessage("Missing Dependency", $"Dependency '{depName}' not found in mod list.");
+                continue;
+            }
+
+            if (!IsModInstalled(depMod))
+            {
+                await InstallModWithDependencies(depMod, processing);
+            }
+        }
+        
+        await DownloadAndInstallMod(mod);
+        MarkModInstalled(mod);
+    }
+    
+    private async Task DownloadAndInstallMod(Mod mod)
+{
+    try
+    {
+        using var client = new HttpClient();
+        var response = await client.GetAsync(mod.DownloadUrl);
+        response.EnsureSuccessStatusCode();
+
+        var fileName = Path.GetFileName(new Uri(mod.DownloadUrl).LocalPath);
+        if (string.IsNullOrEmpty(fileName))
+            fileName = $"{mod.Name}.dll";
+
+        var tempFile = Path.Combine(Path.GetTempPath(), fileName);
+        using (var fileStream = File.Create(tempFile))
+        {
+            await response.Content.CopyToAsync(fileStream);
+        }
+        
+        if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExtractZipToGameFolder(tempFile);
+        }
+        else if (fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            var modsFolder = Path.Combine(GamePath, "Mods");
+            if (!Directory.Exists(modsFolder))
+                Directory.CreateDirectory(modsFolder);
+            var destFile = Path.Combine(modsFolder, fileName);
+            File.Copy(tempFile, destFile, true);
+        }
+        else
+        {
+            var modsFolder = Path.Combine(GamePath, "Mods");
+            if (!Directory.Exists(modsFolder))
+                Directory.CreateDirectory(modsFolder);
+            var destFile = Path.Combine(modsFolder, fileName);
+            File.Copy(tempFile, destFile, true);
+        }
+
+        File.Delete(tempFile);
+
+        await ShowMessage("Success", $"Installed {mod.Name}");
+    }
+    catch (Exception ex)
+    {
+        await ShowMessage("Install Failed", $"Error installing {mod.Name}: {ex.Message}");
+    }
+}
+
+private async Task ExtractZipToGameFolder(string zipPath)
+{
+    using var archive = ZipFile.OpenRead(zipPath);
+    foreach (var entry in archive.Entries)
+    {
+        var destPath = Path.Combine(GamePath, entry.FullName);
+        var destDir = Path.GetDirectoryName(destPath);
+        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+            Directory.CreateDirectory(destDir);
+        entry.ExtractToFile(destPath, true);
+    }
+    await Task.CompletedTask;
+}
+
     private async Task ShowMessage(string title, string message)
     {
         var msgBox = MessageBoxManager.GetMessageBoxStandard(title, message);
         await msgBox.ShowAsync();
+    }
+
+    private Settings _settings = Settings.Load();
+
+    public string GamePath
+    {
+        get => _settings.GamePath;
+        set
+        {
+            _settings.GamePath = value;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public AsyncCommand SelectGamePathCommand { get; }
+
+    private async Task SelectGamePath()
+    {
+        if (App.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+            return;
+
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select The Long Dark installation folder"
+        };
+        var folder = await dialog.ShowAsync(desktop.MainWindow);
+        if (!string.IsNullOrEmpty(folder))
+        {
+            GamePath = folder;
+            await ShowMessage("Game Path Set", $"Game path set to: {folder}");
+        }
+    }
+    
+    private HashSet<string> _installedModNames = new();
+
+    public bool IsModInstalled(Mod mod) => _installedModNames.Contains(mod.Name);
+
+    public void MarkModInstalled(Mod mod)
+    {
+        _installedModNames.Add(mod.Name);
+        mod.IsInstalled = true;
     }
 }
