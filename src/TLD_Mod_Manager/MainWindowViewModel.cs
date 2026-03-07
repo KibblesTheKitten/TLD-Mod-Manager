@@ -14,6 +14,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using MsBox.Avalonia;
+using SharpCompress.Archives;
+using SharpCompress.Common;
+using SharpCompress.Readers;
 
 namespace TLD_Mod_Manager;
 
@@ -235,7 +238,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         MarkModInstalled(mod);
     }
     
-    private async Task DownloadAndInstallMod(Mod mod)
+private async Task DownloadAndInstallMod(Mod mod)
 {
     try
     {
@@ -252,50 +255,67 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             await response.Content.CopyToAsync(fileStream);
         }
-        
-        if (fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+
+        var modsFolder = Path.Combine(GamePath, "Mods");
+        if (!Directory.Exists(modsFolder))
+            Directory.CreateDirectory(modsFolder);
+
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+
+        if (extension == ".dll")
         {
-            await ExtractZipToGameFolder(tempFile);
-        }
-        else if (fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-        {
-            var modsFolder = Path.Combine(GamePath, "Mods");
-            if (!Directory.Exists(modsFolder))
-                Directory.CreateDirectory(modsFolder);
             var destFile = Path.Combine(modsFolder, fileName);
             File.Copy(tempFile, destFile, true);
+        }
+        else if (extension == ".modcomponent")
+        {
+            var destFile = Path.Combine(modsFolder, fileName);
+            File.Copy(tempFile, destFile, true);
+        }
+        else if (extension == ".zip")
+        {
+            using var archive = ZipFile.OpenRead(tempFile);
+            foreach (var entry in archive.Entries)
+            {
+                if (string.IsNullOrEmpty(entry.Name))
+                    continue;
+
+                var destPath = Path.Combine(modsFolder, entry.Name);
+                var destDir = Path.GetDirectoryName(destPath);
+                if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    Directory.CreateDirectory(destDir);
+                
+                entry.ExtractToFile(destPath, true);
+            }
+        }
+        else if (extension == ".7z" || extension == ".7zip")
+        {
+            using var archive = ArchiveFactory.OpenArchive(tempFile);
+            foreach (var entry in archive.Entries)
+            {
+                if (entry.IsDirectory) continue;
+                
+                var destPath = Path.Combine(modsFolder, Path.GetFileName(entry.Key));
+                using var entryStream = entry.OpenEntryStream();
+                using var fileStream = File.Create(destPath);
+                entryStream.CopyTo(fileStream);
+            }
         }
         else
         {
-            var modsFolder = Path.Combine(GamePath, "Mods");
-            if (!Directory.Exists(modsFolder))
-                Directory.CreateDirectory(modsFolder);
+            //for random files. plop into mods and pray xd
             var destFile = Path.Combine(modsFolder, fileName);
             File.Copy(tempFile, destFile, true);
+            await ShowMessage("Warning", $"Unknown file type {extension} for {mod.Name}. Copied as-is to Mods folder.");
         }
 
         File.Delete(tempFile);
-
         await ShowMessage("Success", $"Installed {mod.Name}");
     }
     catch (Exception ex)
     {
         await ShowMessage("Install Failed", $"Error installing {mod.Name}: {ex.Message}");
     }
-}
-
-private async Task ExtractZipToGameFolder(string zipPath)
-{
-    using var archive = ZipFile.OpenRead(zipPath);
-    foreach (var entry in archive.Entries)
-    {
-        var destPath = Path.Combine(GamePath, entry.FullName);
-        var destDir = Path.GetDirectoryName(destPath);
-        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
-            Directory.CreateDirectory(destDir);
-        entry.ExtractToFile(destPath, true);
-    }
-    await Task.CompletedTask;
 }
 
     private async Task ShowMessage(string title, string message)
