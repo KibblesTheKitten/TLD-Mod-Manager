@@ -24,7 +24,7 @@ namespace TLD_Mod_Manager;
 public class MainWindowViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
-    private const string CurrentVersion = "0.0.2";
+    private const string CurrentVersion = "0.0.3";
     private const string GitHubRepo = "KibblesTheKitten/TLD-Mod-Manager";
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
