@@ -25,7 +25,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
     private const string CurrentVersion = "0.0.2";
-    private const string GitHubRepo = "/KibblesTheKitten/TLD-Mod-Manager";
+    private const string GitHubRepo = "KibblesTheKitten/TLD-Mod-Manager";
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
@@ -61,12 +61,12 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     public bool IsModInstalled(Mod mod) => _installedModNames.Contains(mod.Name);
 
-    public void MarkModInstalled(Mod mod)
+    public void MarkModInstalled(Mod mod, List<string> installedFiles)
     {
         if (!_installedModNames.Contains(mod.Name))
         {
             _installedModNames.Add(mod.Name);
-            _settings.InstalledModNames = _installedModNames.ToList();
+            _settings.InstalledModFiles[mod.Name] = installedFiles;
             _settings.Save();
             mod.IsInstalled = true;
         }
@@ -141,6 +141,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     public AsyncCommand ChangeGamePathCommand { get; }
     public AsyncCommand InstallMelonLoaderCommand { get; }
     public AsyncCommand CheckForUpdatesCommand { get; }
+    public AsyncCommand<Mod> UninstallCommand { get; }
 
     public MainWindowViewModel()
     {
@@ -151,6 +152,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         ChangeGamePathCommand = SelectGamePathCommand;
         InstallMelonLoaderCommand = new AsyncCommand(InstallMelonLoader);
         CheckForUpdatesCommand = new AsyncCommand(CheckForUpdates);
+        UninstallCommand = new AsyncCommand<Mod>(UninstallMod);
 
         _ = LoadModsAsync();
     }
@@ -299,12 +301,11 @@ public class MainWindowViewModel : INotifyPropertyChanged
         }
 
         await DownloadAndInstallMod(mod);
-        MarkModInstalled(mod);
     }
 
     private void LoadInstalledMods()
     {
-        _installedModNames = new HashSet<string>(_settings.InstalledModNames);
+        _installedModNames = new HashSet<string>(_settings.InstalledModFiles.Keys);
         foreach (var mod in Mods)
         {
             mod.IsInstalled = _installedModNames.Contains(mod.Name);
@@ -313,6 +314,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
     private async Task DownloadAndInstallMod(Mod mod)
     {
+        var installedFiles = new List<string>();
         try
         {
             using var client = new HttpClient();
@@ -329,25 +331,18 @@ public class MainWindowViewModel : INotifyPropertyChanged
                 await response.Content.CopyToAsync(fileStream);
             }
 
-            var modsFolder = Path.Combine(GamePath, "Mods");
-            if (!Directory.Exists(modsFolder))
-                Directory.CreateDirectory(modsFolder);
-
-            var extension = Path.GetExtension(fileName).ToLowerInvariant();
-
+            // Determine target folder based on mod type
             var targetFolder = mod.IsPlugin ? Path.Combine(GamePath, "Plugins") : Path.Combine(GamePath, "Mods");
             if (!Directory.Exists(targetFolder))
                 Directory.CreateDirectory(targetFolder);
 
-            if (extension == ".dll")
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+
+            if (extension == ".dll" || extension == ".modcomponent")
             {
                 var destFile = Path.Combine(targetFolder, fileName);
                 File.Copy(tempFile, destFile, true);
-            }
-            else if (extension == ".modcomponent")
-            {
-                var destFile = Path.Combine(targetFolder, fileName);
-                File.Copy(tempFile, destFile, true);
+                installedFiles.Add(Path.GetRelativePath(GamePath, destFile));
             }
             else if (extension == ".zip")
             {
@@ -360,6 +355,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
                     if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
                         Directory.CreateDirectory(destDir);
                     entry.ExtractToFile(destPath, true);
+                    installedFiles.Add(Path.GetRelativePath(GamePath, destPath));
                 }
             }
             else if (extension == ".7z" || extension == ".7zip")
@@ -372,23 +368,60 @@ public class MainWindowViewModel : INotifyPropertyChanged
                     using var entryStream = entry.OpenEntryStream();
                     using var fileStream = File.Create(destPath);
                     entryStream.CopyTo(fileStream);
+                    installedFiles.Add(Path.GetRelativePath(GamePath, destPath));
                 }
             }
             else
             {
-                // For leftovers. show in mods and pray
                 var destFile = Path.Combine(targetFolder, fileName);
                 File.Copy(tempFile, destFile, true);
+                installedFiles.Add(Path.GetRelativePath(GamePath, destFile));
                 await ShowMessage("Warning",
                     $"Unknown file type {extension} for {mod.Name}. Copied as-is to {targetFolder}.");
             }
 
             File.Delete(tempFile);
+            MarkModInstalled(mod, installedFiles);
             await ShowMessage("Success", $"Installed {mod.Name}");
         }
         catch (Exception ex)
         {
             await ShowMessage("Install Failed", $"Error installing {mod.Name}: {ex.Message}");
+        }
+    }
+
+    private async Task UninstallMod(Mod? mod)
+    {
+        if (mod == null) return;
+        if (!_settings.InstalledModFiles.TryGetValue(mod.Name, out var files))
+        {
+            await ShowMessage("Error", $"No installation record found for {mod.Name}.");
+            return;
+        }
+
+        var confirm = await ShowConfirmDialog("Confirm Uninstall", $"Are you sure you want to uninstall {mod.Name}?");
+        if (!confirm) return;
+
+        try
+        {
+            foreach (var relativePath in files)
+            {
+                var fullPath = Path.Combine(GamePath, relativePath);
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
+            }
+
+            _settings.InstalledModFiles.Remove(mod.Name);
+            _settings.Save();
+
+            _installedModNames.Remove(mod.Name);
+            mod.IsInstalled = false;
+
+            await ShowMessage("Success", $"{mod.Name} has been uninstalled.");
+        }
+        catch (Exception ex)
+        {
+            await ShowMessage("Error", $"Uninstall failed: {ex.Message}");
         }
     }
 
@@ -492,29 +525,53 @@ public class MainWindowViewModel : INotifyPropertyChanged
         var result = await box.ShowAsync();
         return result == ButtonResult.Yes;
     }
-    
+
     private async Task CheckForUpdates()
     {
         try
         {
             using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", "TLD-Mod-Manager"); // GitHub API requires a user agent
-            var response = await client.GetStringAsync($"https://api.github.com/repos/{GitHubRepo}/releases/latest");
-        
-            var release = JsonSerializer.Deserialize<GitHubRelease>(response);
-            if (release?.TagName == null) return;
+            client.DefaultRequestHeaders.Add("User-Agent", "TLD-Mod-Manager");
+            
+            var response = await client.GetAsync($"https://api.github.com/repos/{GitHubRepo}/releases");
 
-            // Compare versions (simple string comparison, assumes tags like "v1.0.0")
-            if (release.TagName.TrimStart('v') != CurrentVersion)
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                var answer = await ShowConfirmDialog("Update Available", 
-                    $"A new version ({release.TagName}) is available. Download it now?");
+                await ShowMessage("Update Check",
+                    $"Repository '{GitHubRepo}' not found. Please check:\n" +
+                    "- The repository name is correct\n" +
+                    "- The repository is public\n" +
+                    "- You have an internet connection");
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            var releases = JsonSerializer.Deserialize<List<GitHubRelease>>(json);
+
+            if (releases == null || releases.Count == 0)
+            {
+                await ShowMessage("Update Check", "No releases found in this repository.");
+                return;
+            }
+
+            var latest = releases.First();
+            string latestVersion = latest.TagName?.TrimStart('v', 'V') ?? "0.0.0";
+            string currentVersion = CurrentVersion.TrimStart('v', 'V');
+
+            if (latestVersion != currentVersion)
+            {
+                bool answer = await ShowConfirmDialog("Update Available",
+                    $"A new version ({latest.TagName}) is available.\n\n" +
+                    $"Current version: v{currentVersion}\n" +
+                    $"New version: {latest.TagName}\n\n" +
+                    "Do you want to download it now?");
+
                 if (answer)
                 {
-                    // Open the release page in browser
                     var psi = new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = release.HtmlUrl,
+                        FileName = latest.HtmlUrl,
                         UseShellExecute = true
                     };
                     System.Diagnostics.Process.Start(psi);
@@ -522,21 +579,29 @@ public class MainWindowViewModel : INotifyPropertyChanged
             }
             else
             {
-                await ShowMessage("Up to Date", "You have the latest version.");
+                await ShowMessage("Up to Date", $"You have the latest version (v{currentVersion}).");
             }
+        }
+        catch (HttpRequestException ex)
+        {
+            await ShowMessage("Update Check Failed", $"Network error: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            await ShowMessage("Update Check Failed", $"Error parsing response: {ex.Message}");
         }
         catch (Exception ex)
         {
-            await ShowMessage("Update Check Failed", $"Could not check for updates: {ex.Message}");
+            await ShowMessage("Update Check Failed", $"Unexpected error: {ex.Message}");
         }
     }
     
     private class GitHubRelease
     {
-        [JsonPropertyName("tag_name")]
-        public string? TagName { get; set; }
-    
-        [JsonPropertyName("html_url")]
-        public string? HtmlUrl { get; set; }
+        [JsonPropertyName("tag_name")] public string? TagName { get; set; }
+
+        [JsonPropertyName("html_url")] public string? HtmlUrl { get; set; }
+
+        [JsonPropertyName("prerelease")] public bool Prerelease { get; set; }
     }
 }

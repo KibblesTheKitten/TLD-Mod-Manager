@@ -5,6 +5,7 @@
         x:Class="TLD_Mod_Manager.MainWindow"
         x:Name="RootWindow"
         x:DataType="local:MainWindowViewModel"
+        Icon="/Assets/images/melonaxe.ico"
         Title="TLD Mod Manager"
         Width="1000" Height="700"
         Background="{DynamicResource MaterialDesignBackground}">
@@ -141,14 +142,18 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </WrapPanel>
-                            
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                                 <Button Classes="Text" Content="Details"
                                         Command="{Binding DataContext.ShowDetailsCommand, ElementName=RootWindow}"
                                         CommandParameter="{Binding .}"/>
                                 <Button Classes="Primary" Content="Install"
                                         Command="{Binding DataContext.InstallCommand, ElementName=RootWindow}"
-                                        CommandParameter="{Binding .}"/>
+                                        CommandParameter="{Binding .}"
+                                        IsVisible="{Binding !IsInstalled}"/>
+                                <Button Classes="Accent" Content="Uninstall"
+                                        Command="{Binding DataContext.UninstallCommand, ElementName=RootWindow}"
+                                        CommandParameter="{Binding .}"
+                                        IsVisible="{Binding IsInstalled}"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

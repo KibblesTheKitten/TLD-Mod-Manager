@@ -39,7 +39,9 @@ public class ModService
                 DownloadUrl = !string.IsNullOrEmpty(apiMod.Download) ? apiMod.Download :
                                (apiMod.Downloads != null && apiMod.Downloads.Count > 0 ? apiMod.Downloads[0] : ""),
                 Dependencies = apiMod.Dependencies ?? new List<string>(),
-                SourceUrl = apiMod.Source
+                SourceUrl = apiMod.Source,
+                IsLibrary = apiMod.Type?.Equals("library", StringComparison.OrdinalIgnoreCase) ?? false,
+                IsPlugin = apiMod.Type?.Equals("plugin", StringComparison.OrdinalIgnoreCase) ?? false
             }).ToList();
 
             return result;

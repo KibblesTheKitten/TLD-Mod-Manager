@@ -1,5 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <ApplicationIcon>Assets/images/melonaxe.ico</ApplicationIcon>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
@@ -34,15 +35,13 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Assets\images\" />
-    </ItemGroup>
-
-    <ItemGroup>
       <None Remove="Assets\images\Error.png" />
       <AvaloniaResource Include="Assets\images\Error.png" />
       <None Remove="Assets\images\Loading.png" />
       <AvaloniaResource Include="Assets\images\Loading.png" />
       <None Remove="Assets\images\Placeholder.png" />
       <AvaloniaResource Include="Assets\images\Placeholder.png" />
+      <None Remove="Assets\images\melonaxe.ico" />
+      <AvaloniaResource Include="Assets\images\melonaxe.ico" />
     </ItemGroup>
 </Project>

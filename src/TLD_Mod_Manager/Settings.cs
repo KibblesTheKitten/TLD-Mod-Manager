@@ -14,7 +14,7 @@ public class Settings
         "settings.json");
 
     public string GamePath { get; set; } = "";
-    public List<string> InstalledModNames { get; set; } = new();
+    public Dictionary<string, List<string>> InstalledModFiles { get; set; } = new(); // mod name -> list of relative file paths
 
     public void Save()
     {
@@ -77,7 +77,6 @@ public class Settings
                     return path;
             }
         }
-
         return null;
     }
 }
