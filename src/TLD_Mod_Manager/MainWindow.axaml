@@ -24,6 +24,7 @@
             <TextBlock Text="The Long Dark Mod Manager" Classes="Headline4" HorizontalAlignment="Center"/>
             <TextBlock Text="{Binding Mods.Count, StringFormat='{}{0} mods available'}" Classes="Subtitle1" HorizontalAlignment="Center"/>
             <Button Content="Select Game Folder" Command="{Binding SelectGamePathCommand}" Margin="0,5" HorizontalAlignment="Center"/>
+            <Button Content="Install MelonLoader" Command="{Binding InstallMelonLoaderCommand}" Margin="5"/>
             <TextBlock Text="{Binding GamePath}" Classes="Caption" TextWrapping="Wrap" HorizontalAlignment="Center"/>
         </StackPanel>
         

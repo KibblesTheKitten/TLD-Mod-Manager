@@ -56,26 +56,54 @@ public class ModService
         try
         {
             string json = await _httpClient.GetStringAsync(sourceUrl);
+            
             var modList = JsonSerializer.Deserialize<List<JsonModData>>(json);
-            var fullData = modList?.FirstOrDefault();
-            if (fullData == null) return null;
-
-            return new ModDetails
+            if (modList != null && modList.Any())
             {
-                Status = fullData.Status?.Working == true ? "WORKING" : "NOT WORKING",
-                TestedOn = fullData.TestedOn != null
-                    ? $"TLD {fullData.TestedOn.TldVersion} / ML {fullData.TestedOn.MlVersion}"
-                    : "Unknown",
-                Beta = fullData.Status?.Beta ?? false,
-                PatchNotes = fullData.Status?.PatchNotes ?? ""
-            };
+                var fullData = modList.First();
+                return CreateModDetails(fullData);
+            }
+            
+            var container = JsonSerializer.Deserialize<ModListContainer>(json);
+            if (container?.Mods != null && container.Mods.Any())
+            {
+                var fullData = container.Mods.First();
+                return CreateModDetails(fullData);
+            }
+            
+            var singleMod = JsonSerializer.Deserialize<JsonModData>(json);
+            if (singleMod != null)
+            {
+                return CreateModDetails(singleMod);
+            }
+
+            return null;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error fetching mod details: {ex.Message}");
+            Debug.WriteLine($"Error fetching mod details from {sourceUrl}: {ex.Message}");
             return null;
         }
     }
+
+    private ModDetails CreateModDetails(JsonModData data)
+    {
+        return new ModDetails
+        {
+            Status = data.Status?.Working == true ? "WORKING" : (data.Status?.Working == false ? "NOT WORKING" : "Unknown"),
+            TestedOn = data.TestedOn != null
+                ? $"TLD {data.TestedOn.TldVersion} / ML {data.TestedOn.MlVersion}"
+                : "Unknown",
+            Beta = data.Status?.Beta ?? false,
+            PatchNotes = data.Status?.PatchNotes ?? ""
+        };
+    }
+}
+
+public class ModListContainer
+{
+    [JsonPropertyName("mods")]
+    public List<JsonModData>? Mods { get; set; }
 }
 
 public class ApiMod
