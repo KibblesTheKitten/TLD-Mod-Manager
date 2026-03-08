@@ -1,6 +1,5 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:TLD_Mod_Manager"
              xmlns:converters="clr-namespace:TLD_Mod_Manager.Converters"
              xmlns:themes="clr-namespace:Material.Styles.Themes;assembly=Material.Styles"
              x:Class="TLD_Mod_Manager.App">
@@ -14,3 +13,5 @@
         <themes:MaterialTheme BaseTheme="Dark" PrimaryColor="Blue" SecondaryColor="Amber" />
     </Application.Styles>
 </Application>
+
+<!-- VERSION 0.0.1. DO NOT USE IN PUBLIC. UNSTABLE DEBUGGING BUILD. -->
