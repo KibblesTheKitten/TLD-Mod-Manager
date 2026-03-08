@@ -13,5 +13,3 @@
         <themes:MaterialTheme BaseTheme="Dark" PrimaryColor="Blue" SecondaryColor="Amber" />
     </Application.Styles>
 </Application>
-
-<!-- VERSION 0.0.1. DO NOT USE IN PUBLIC. UNSTABLE DEBUGGING BUILD. -->

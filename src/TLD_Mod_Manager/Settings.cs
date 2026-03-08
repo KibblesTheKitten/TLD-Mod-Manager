@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -13,6 +14,7 @@ public class Settings
         "settings.json");
 
     public string GamePath { get; set; } = "";
+    public List<string> InstalledModNames { get; set; } = new();
 
     public void Save()
     {
