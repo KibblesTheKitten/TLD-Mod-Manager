@@ -146,6 +146,10 @@
                                 <Button Classes="Text" Content="Details"
                                         Command="{Binding DataContext.ShowDetailsCommand, ElementName=RootWindow}"
                                         CommandParameter="{Binding .}"/>
+                                <Button Classes="Primary" Content="Update"
+                                        Command="{Binding DataContext.UpdateModCommand, ElementName=RootWindow}"
+                                        CommandParameter="{Binding .}"
+                                        IsVisible="{Binding UpdateAvailable}"/>
                                 <Button Classes="Primary" Content="Install"
                                         Command="{Binding DataContext.InstallCommand, ElementName=RootWindow}"
                                         CommandParameter="{Binding .}"
@@ -153,7 +157,7 @@
                                 <Button Classes="Accent" Content="Uninstall"
                                         Command="{Binding DataContext.UninstallCommand, ElementName=RootWindow}"
                                         CommandParameter="{Binding .}"
-                                        IsVisible="{Binding IsInstalled}"/>
+                                        IsVisible="{Binding ShowUninstall}"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

@@ -24,7 +24,7 @@ namespace TLD_Mod_Manager;
 public class MainWindowViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
-    private const string CurrentVersion = "0.0.3";
+    private const string CurrentVersion = "0.0.4";
     private const string GitHubRepo = "KibblesTheKitten/TLD-Mod-Manager";
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -46,7 +46,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private bool _isGamePathDetected;
-
     public bool IsGamePathDetected
     {
         get => _isGamePathDetected;
@@ -56,24 +55,10 @@ public class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-
-    private HashSet<string> _installedModNames = new();
-
-    public bool IsModInstalled(Mod mod) => _installedModNames.Contains(mod.Name);
-
-    public void MarkModInstalled(Mod mod, List<string> installedFiles)
-    {
-        if (!_installedModNames.Contains(mod.Name))
-        {
-            _installedModNames.Add(mod.Name);
-            _settings.InstalledModFiles[mod.Name] = installedFiles;
-            _settings.Save();
-            mod.IsInstalled = true;
-        }
-    }
+    
+    private Dictionary<string, InstalledModInfo> _installedMods = new();
 
     private ObservableCollection<Mod> _mods = new();
-
     public ObservableCollection<Mod> Mods
     {
         get => _mods;
@@ -86,7 +71,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private ObservableCollection<Mod> _filteredMods = new();
-
     public ObservableCollection<Mod> FilteredMods
     {
         get => _filteredMods;
@@ -98,7 +82,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private string _searchText = string.Empty;
-
     public string SearchText
     {
         get => _searchText;
@@ -111,7 +94,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private bool _isLoading;
-
     public bool IsLoading
     {
         get => _isLoading;
@@ -123,7 +105,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
 
     private ModDetails? _selectedModDetails;
-
     public ModDetails? SelectedModDetails
     {
         get => _selectedModDetails;
@@ -133,26 +114,28 @@ public class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-
+    
     public AsyncCommand<Mod> ShowDetailsCommand { get; }
     public AsyncCommand<Mod> InstallCommand { get; }
+    public AsyncCommand<Mod> UninstallCommand { get; }
+    public AsyncCommand<Mod> UpdateModCommand { get; }
     public AsyncCommand SelectGamePathCommand { get; }
     public AsyncCommand AcceptGamePathCommand { get; }
     public AsyncCommand ChangeGamePathCommand { get; }
     public AsyncCommand InstallMelonLoaderCommand { get; }
     public AsyncCommand CheckForUpdatesCommand { get; }
-    public AsyncCommand<Mod> UninstallCommand { get; }
 
     public MainWindowViewModel()
     {
         ShowDetailsCommand = new AsyncCommand<Mod>(ShowDetails);
         InstallCommand = new AsyncCommand<Mod>(InstallMod);
+        UninstallCommand = new AsyncCommand<Mod>(UninstallMod);
+        UpdateModCommand = new AsyncCommand<Mod>(UpdateMod);
         SelectGamePathCommand = new AsyncCommand(SelectGamePath);
         AcceptGamePathCommand = new AsyncCommand(AcceptGamePath);
         ChangeGamePathCommand = SelectGamePathCommand;
         InstallMelonLoaderCommand = new AsyncCommand(InstallMelonLoader);
         CheckForUpdatesCommand = new AsyncCommand(CheckForUpdates);
-        UninstallCommand = new AsyncCommand<Mod>(UninstallMod);
 
         _ = LoadModsAsync();
     }
@@ -183,6 +166,8 @@ public class MainWindowViewModel : INotifyPropertyChanged
             var loadedModsList = await service.GetModsAsync();
             Mods = new ObservableCollection<Mod>(loadedModsList);
             LoadInstalledMods();
+            _ = DetectManuallyInstalledMods();
+            ComputeUpdateStatus();
 
             _ = FetchAllDetailsAsync(loadedModsList);
 
@@ -238,6 +223,102 @@ public class MainWindowViewModel : INotifyPropertyChanged
         await Task.WhenAll(tasks);
     }
 
+    private void LoadInstalledMods()
+    {
+        _installedMods = _settings.InstalledMods;
+        foreach (var mod in Mods)
+        {
+            mod.IsInstalled = _installedMods.ContainsKey(mod.Name);
+        }
+    }
+
+    public void MarkModInstalled(Mod mod, List<string> installedFiles)
+    {
+        if (!_installedMods.ContainsKey(mod.Name))
+        {
+            var info = new InstalledModInfo { Version = mod.Version, Files = installedFiles };
+            _installedMods[mod.Name] = info;
+            _settings.InstalledMods = _installedMods;
+            _settings.Save();
+            mod.IsInstalled = true;
+            ComputeUpdateStatus();
+        }
+    }
+
+    public bool IsModInstalled(Mod mod) => _installedMods.ContainsKey(mod.Name);
+
+    private void ComputeUpdateStatus()
+    {
+        foreach (var mod in Mods)
+        {
+            if (_installedMods.TryGetValue(mod.Name, out var info))
+            {
+                mod.UpdateAvailable = info.Version != mod.Version;
+            }
+            else
+            {
+                mod.UpdateAvailable = false;
+            }
+        }
+    }
+    
+private async Task DetectManuallyInstalledMods()
+{
+    if (string.IsNullOrEmpty(GamePath))
+    {
+        System.Diagnostics.Debug.WriteLine("GamePath not set, skipping manual detection.");
+        return;
+    }
+
+    var modsFolder = Path.Combine(GamePath, "Mods");
+    var pluginsFolder = Path.Combine(GamePath, "Plugins");
+
+    var files = new List<string>();
+    if (Directory.Exists(modsFolder))
+        files.AddRange(Directory.GetFiles(modsFolder, "*.dll"));
+    if (Directory.Exists(pluginsFolder))
+        files.AddRange(Directory.GetFiles(pluginsFolder, "*.dll"));
+    if (Directory.Exists(pluginsFolder))
+        files.AddRange(Directory.GetFiles(pluginsFolder, "*.modcomponent"));
+
+    System.Diagnostics.Debug.WriteLine($"Found {files.Count} DLLs in Mods/Plugins folders.");
+
+    bool addedAny = false;
+    foreach (var file in files)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(file);
+        System.Diagnostics.Debug.WriteLine($"Checking file: {fileName}");
+        
+        var mod = Mods.FirstOrDefault(m => 
+            string.Equals(m.Name, fileName, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(m.Name.Replace(" ", ""), fileName.Replace(" ", ""), StringComparison.OrdinalIgnoreCase) ||
+            m.Name.Contains(fileName, StringComparison.OrdinalIgnoreCase) ||
+            fileName.Contains(m.Name.Replace(" ", ""), StringComparison.OrdinalIgnoreCase)
+        );
+
+        if (mod != null && !_installedMods.ContainsKey(mod.Name))
+        {
+            System.Diagnostics.Debug.WriteLine($"Matched mod: {mod.Name} from file {fileName}");
+            var relativePath = Path.GetRelativePath(GamePath, file);
+            var info = new InstalledModInfo { Version = "unknown", Files = new List<string> { relativePath } };
+            _installedMods[mod.Name] = info;
+            mod.IsInstalled = true;
+            addedAny = true;
+        }
+        else if (mod == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"No matching mod found for {fileName}");
+        }
+    }
+
+    if (addedAny)
+    {
+        _settings.InstalledMods = _installedMods;
+        _settings.Save();
+        System.Diagnostics.Debug.WriteLine("Settings saved with manually detected mods.");
+    }
+}
+
     private async Task ShowDetails(Mod? mod)
     {
         if (mod == null) return;
@@ -251,6 +332,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             await detailsWindow.ShowDialog(desktop.MainWindow);
         }
+        
         else
         {
             detailsWindow.Show();
@@ -303,15 +385,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
         await DownloadAndInstallMod(mod);
     }
 
-    private void LoadInstalledMods()
-    {
-        _installedModNames = new HashSet<string>(_settings.InstalledModFiles.Keys);
-        foreach (var mod in Mods)
-        {
-            mod.IsInstalled = _installedModNames.Contains(mod.Name);
-        }
-    }
-
     private async Task DownloadAndInstallMod(Mod mod)
     {
         var installedFiles = new List<string>();
@@ -331,7 +404,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
                 await response.Content.CopyToAsync(fileStream);
             }
 
-            // Determine target folder based on mod type
             var targetFolder = mod.IsPlugin ? Path.Combine(GamePath, "Plugins") : Path.Combine(GamePath, "Mods");
             if (!Directory.Exists(targetFolder))
                 Directory.CreateDirectory(targetFolder);
@@ -376,8 +448,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
                 var destFile = Path.Combine(targetFolder, fileName);
                 File.Copy(tempFile, destFile, true);
                 installedFiles.Add(Path.GetRelativePath(GamePath, destFile));
-                await ShowMessage("Warning",
-                    $"Unknown file type {extension} for {mod.Name}. Copied as-is to {targetFolder}.");
+                await ShowMessage("Warning", $"Unknown file type {extension} for {mod.Name}. Copied as-is to {targetFolder}.");
             }
 
             File.Delete(tempFile);
@@ -393,7 +464,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     private async Task UninstallMod(Mod? mod)
     {
         if (mod == null) return;
-        if (!_settings.InstalledModFiles.TryGetValue(mod.Name, out var files))
+        if (!_installedMods.TryGetValue(mod.Name, out var info))
         {
             await ShowMessage("Error", $"No installation record found for {mod.Name}.");
             return;
@@ -404,25 +475,55 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
-            foreach (var relativePath in files)
+            foreach (var relativePath in info.Files)
             {
                 var fullPath = Path.Combine(GamePath, relativePath);
                 if (File.Exists(fullPath))
                     File.Delete(fullPath);
             }
 
-            _settings.InstalledModFiles.Remove(mod.Name);
+            _installedMods.Remove(mod.Name);
+            _settings.InstalledMods = _installedMods;
             _settings.Save();
 
-            _installedModNames.Remove(mod.Name);
             mod.IsInstalled = false;
-
+            mod.UpdateAvailable = false;
             await ShowMessage("Success", $"{mod.Name} has been uninstalled.");
         }
         catch (Exception ex)
         {
             await ShowMessage("Error", $"Uninstall failed: {ex.Message}");
         }
+    }
+
+    private async Task UpdateMod(Mod? mod)
+    {
+        if (mod == null) return;
+        if (string.IsNullOrEmpty(mod.DownloadUrl))
+        {
+            await ShowMessage("Error", "No download URL for this mod.");
+            return;
+        }
+        if (string.IsNullOrEmpty(GamePath))
+        {
+            await ShowMessage("Game Path Required", "Please select your The Long Dark installation folder first.");
+            return;
+        }
+
+        // Uninstall old version first
+        if (_installedMods.TryGetValue(mod.Name, out var info))
+        {
+            foreach (var relativePath in info.Files)
+            {
+                var fullPath = Path.Combine(GamePath, relativePath);
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
+            }
+            _installedMods.Remove(mod.Name);
+        }
+
+        // Install new version (this will call MarkModInstalled with new version and files)
+        await DownloadAndInstallMod(mod);
     }
 
     private async Task SelectGamePath()
@@ -467,8 +568,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrEmpty(GamePath))
         {
-            await ShowMessage("Game Path Required",
-                "Please select or confirm your The Long Dark installation folder first.");
+            await ShowMessage("Game Path Required", "Please select or confirm your The Long Dark installation folder first.");
             return;
         }
 
@@ -483,8 +583,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
         try
         {
-            string melonLoaderZipUrl =
-                "https://github.com/LavaGang/MelonLoader/releases/download/v0.7.2/MelonLoader.zip";
+            string melonLoaderZipUrl = "https://github.com/LavaGang/MelonLoader/releases/download/v0.7.2/MelonLoader.zip";
 
             using var client = new HttpClient();
             var response = await client.GetAsync(melonLoaderZipUrl);
@@ -510,7 +609,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
             }
 
             File.Delete(tempZip);
-
             await ShowMessage("Success", "MelonLoader has been installed.");
         }
         catch (Exception ex)
@@ -532,7 +630,6 @@ public class MainWindowViewModel : INotifyPropertyChanged
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Add("User-Agent", "TLD-Mod-Manager");
-            
             var response = await client.GetAsync($"https://api.github.com/repos/{GitHubRepo}/releases");
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -595,13 +692,11 @@ public class MainWindowViewModel : INotifyPropertyChanged
             await ShowMessage("Update Check Failed", $"Unexpected error: {ex.Message}");
         }
     }
-    
+
     private class GitHubRelease
     {
         [JsonPropertyName("tag_name")] public string? TagName { get; set; }
-
         [JsonPropertyName("html_url")] public string? HtmlUrl { get; set; }
-
         [JsonPropertyName("prerelease")] public bool Prerelease { get; set; }
     }
 }

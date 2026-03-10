@@ -6,6 +6,12 @@ using System.Text.Json;
 
 namespace TLD_Mod_Manager;
 
+public class InstalledModInfo
+{
+    public string Version { get; set; } = "";
+    public List<string> Files { get; set; } = new();
+}
+
 public class Settings
 {
     private static readonly string SettingsPath = Path.Combine(
@@ -14,14 +20,14 @@ public class Settings
         "settings.json");
 
     public string GamePath { get; set; } = "";
-    public Dictionary<string, List<string>> InstalledModFiles { get; set; } = new(); // mod name -> list of relative file paths
+    public Dictionary<string, InstalledModInfo> InstalledMods { get; set; } = new();
 
     public void Save()
     {
         var dir = Path.GetDirectoryName(SettingsPath);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
-        var json = JsonSerializer.Serialize(this);
+        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(SettingsPath, json);
     }
 
