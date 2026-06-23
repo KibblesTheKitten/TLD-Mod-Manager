@@ -53,51 +53,56 @@ public class ModService
         }
     }
 
-    public async Task<ModDetails?> GetModDetailsAsync(string sourceUrl)
+    public async Task<ModDetails?> GetModDetailsAsync(Mod mod)
     {
+        if (string.IsNullOrEmpty(mod.SourceUrl)) return null;
         try
         {
-            string json = await _httpClient.GetStringAsync(sourceUrl);
-            
-            var modList = JsonSerializer.Deserialize<List<JsonModData>>(json);
-            if (modList != null && modList.Any())
-            {
-                var fullData = modList.First();
-                return CreateModDetails(fullData);
-            }
+            string json = await _httpClient.GetStringAsync(mod.SourceUrl);
             
             var container = JsonSerializer.Deserialize<ModListContainer>(json);
             if (container?.Mods != null && container.Mods.Any())
             {
-                var fullData = container.Mods.First();
-                return CreateModDetails(fullData);
+                var matched = FindMatchingMod(container.Mods, mod.Name);
+                if (matched != null)
+                    return CreateModDetails(matched);
             }
             
-            var singleMod = JsonSerializer.Deserialize<JsonModData>(json);
-            if (singleMod != null)
+            var modList = JsonSerializer.Deserialize<List<JsonModData>>(json);
+            if (modList != null && modList.Any())
             {
-                return CreateModDetails(singleMod);
+                var matched = FindMatchingMod(modList, mod.Name);
+                if (matched != null)
+                    return CreateModDetails(matched);
             }
-
+        
             return null;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Error fetching mod details from {sourceUrl}: {ex.Message}");
+            Debug.WriteLine($"Error fetching mod details for {mod.Name} from {mod.SourceUrl}: {ex.Message}");
             return null;
         }
+    }
+    
+    private JsonModData? FindMatchingMod(IEnumerable<JsonModData> mods, string targetName)
+    {
+        return mods.FirstOrDefault(m =>
+            string.Equals(m.Name, targetName, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(m.DisplayName, targetName, StringComparison.OrdinalIgnoreCase));
     }
 
     private ModDetails CreateModDetails(JsonModData data)
     {
         return new ModDetails
         {
-            Status = data.Status?.Working == true ? "WORKING" : (data.Status?.Working == false ? "NOT WORKING" : "Unknown"),
+            Status = data.Status?.Working == true ? "WORKING" : "NOT WORKING",
             TestedOn = data.TestedOn != null
                 ? $"TLD {data.TestedOn.TldVersion} / ML {data.TestedOn.MlVersion}"
                 : "Unknown",
             Beta = data.Status?.Beta ?? false,
-            PatchNotes = data.Status?.PatchNotes ?? ""
+            PatchNotes = data.Status?.PatchNotes ?? "",
+            ImageUrl = data.Images?.FirstOrDefault() ?? ""
         };
     }
 }
@@ -172,6 +177,8 @@ public class JsonModData
     public bool TftftDlcRequired { get; set; }
     public bool IsLibrary { get; set; }
     public bool IsPlugin { get; set; }
+    public List<string>? Images { get; set; }
+    public string? DisplayName { get; set; }
 }
 
 public class ModStatus
@@ -207,4 +214,5 @@ public class ModDetails
     public string TestedOn { get; set; } = "Unknown";
     public bool Beta { get; set; }
     public string PatchNotes { get; set; } = "";
+    public string ImageUrl { get; set; } = "";
 }

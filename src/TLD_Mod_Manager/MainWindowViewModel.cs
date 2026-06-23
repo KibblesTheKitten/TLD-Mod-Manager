@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using AsyncAwaitBestPractices.MVVM;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
@@ -173,7 +174,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
 
             if (string.IsNullOrEmpty(GamePath))
             {
-                var detectedPath = Settings.DetectGamePath();
+                var detectedPath = InstallLocationDetection.DetectGamePath();
                 if (!string.IsNullOrEmpty(detectedPath))
                 {
                     GamePath = detectedPath;
@@ -201,13 +202,15 @@ public class MainWindowViewModel : INotifyPropertyChanged
             {
                 if (string.IsNullOrEmpty(mod.SourceUrl)) return;
                 var service = new ModService();
-                var details = await service.GetModDetailsAsync(mod.SourceUrl);
+                var details = await service.GetModDetailsAsync(mod);
                 if (details != null)
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
                         mod.Status = details.Status;
                         mod.TestedOn = details.TestedOn;
+                        if (!string.IsNullOrEmpty(details.ImageUrl))
+                            mod.ImageUrl = details.ImageUrl;
                     });
                 }
             }
@@ -509,8 +512,6 @@ private async Task DetectManuallyInstalledMods()
             await ShowMessage("Game Path Required", "Please select your The Long Dark installation folder first.");
             return;
         }
-
-        // Uninstall old version first
         if (_installedMods.TryGetValue(mod.Name, out var info))
         {
             foreach (var relativePath in info.Files)
@@ -521,26 +522,36 @@ private async Task DetectManuallyInstalledMods()
             }
             _installedMods.Remove(mod.Name);
         }
-
-        // Install new version (this will call MarkModInstalled with new version and files)
         await DownloadAndInstallMod(mod);
     }
-
     private async Task SelectGamePath()
     {
-        if (App.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        // Get the top-level window (the main window)
+        if (App.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
+            desktop.MainWindow == null)
+        {
+            await ShowMessage("Error", "Cannot determine main window.");
             return;
+        }
 
-        var dialog = new OpenFolderDialog
+        var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
+        if (topLevel == null)
         {
-            Title = "Select The Long Dark installation folder"
-        };
-        var folder = await dialog.ShowAsync(desktop.MainWindow);
-        if (!string.IsNullOrEmpty(folder))
+            await ShowMessage("Error", "Cannot get top level window.");
+            return;
+        }
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            GamePath = folder;
+            Title = "Select The Long Dark installation folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count > 0)
+        {
+            GamePath = folders[0].Path.LocalPath;
             IsGamePathDetected = true;
-            await ShowMessage("Game Path Set", $"Game path set to: {folder}");
+            await ShowMessage("Game Path Set", $"Game path set to: {GamePath}");
         }
     }
 
@@ -583,7 +594,7 @@ private async Task DetectManuallyInstalledMods()
 
         try
         {
-            string melonLoaderZipUrl = "https://github.com/LavaGang/MelonLoader/releases/download/v0.7.2/MelonLoader.zip";
+            string melonLoaderZipUrl = "https://github.com/LavaGang/MelonLoader/releases/download/v0.7.2/MelonLoader.x64.zip";
 
             using var client = new HttpClient();
             var response = await client.GetAsync(melonLoaderZipUrl);
