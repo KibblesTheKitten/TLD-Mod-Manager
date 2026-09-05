@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TLDMM_NG.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="500"
+        x:Class="TLDMM_NG.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/images/melonaxe.ico"
+        Title="TLDMM_NG">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+    
+    <StackPanel Width="200" Margin="16" Spacing="10">
+        <TextBlock Text="awawawawawawawa" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Button HorizontalAlignment="Center" Click="ButtonClicked">FUCKEN BUTTON</Button>
+    </StackPanel>
+
+</Window>
