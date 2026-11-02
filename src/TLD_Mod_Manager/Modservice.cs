@@ -12,7 +12,7 @@ namespace TLD_Mod_Manager;
 public class ModService
 {
     private readonly HttpClient _httpClient = new();
-    private const string ApiUrl = "https://tldmods.com/api.php";
+    private const string ApiUrl = "https://tldmods.net/api.php";
 
     public async Task<List<Mod>> GetModsAsync()
     {
